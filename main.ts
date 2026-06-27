@@ -378,12 +378,24 @@ class CardWaterfallView extends ItemView {
     this.gridEl.style.display = ""; this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
 
+    // 计算列宽
+    const columns = this.plugin.settings.cardColumns || 3;
+    const gap = 36;
+    const gridWidth = this.gridEl.clientWidth;
+    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
+    this.gridEl.style.position = "";
+    this.gridEl.style.height = "";
+
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
       const bgColor = STATUS_COLORS[card.status] || null;
 
       const cardEl = this.gridEl.createDiv({ cls: "card-waterfall-card", attr: { "data-id": card.id } });
       this.cardElements.set(card.id, cardEl);
+
+      // ✅ 在文档流中设好卡片宽度 + 垂直间距
+      cardEl.style.width = colWidth + "px";
+      cardEl.style.marginBottom = gap + "px";
 
       if (bgColor) {
         cardEl.style.backgroundColor = bgColor;
@@ -467,7 +479,41 @@ class CardWaterfallView extends ItemView {
       }
     }
 
-    // CSS Columns 自动处理瀑布流布局
+    // ⏳ 等 DOM 渲染稳定后再做 Masonry 定位
+    setTimeout(() => this.layoutMasonry(), 120);
+  }
+
+  // ─── Masonry 布局：最短列算法 ───
+  layoutMasonry() {
+    const cards = Array.from(this.gridEl.children) as HTMLElement[];
+    if (cards.length === 0) return;
+
+    const columns = this.plugin.settings.cardColumns || 3;
+    const gap = 36;
+    const colWidth = parseFloat(cards[0]?.style.width) || 280;
+
+    // 读取自然高度（卡片此时还在文档流中，绝对定位还没设）
+    const heights = cards.map((el) => el.offsetHeight);
+
+    // 最短列算法
+    const colHeights = new Array(columns).fill(-gap);
+    this.gridEl.style.position = "relative";
+
+    for (let i = 0; i < cards.length; i++) {
+      let minCol = 0;
+      for (let j = 1; j < columns; j++) {
+        if (colHeights[j] < colHeights[minCol]) minCol = j;
+      }
+      cards[i].style.position = "absolute";
+      cards[i].style.width = colWidth + "px";
+      cards[i].style.left = (minCol * (colWidth + gap)) + "px";
+      cards[i].style.top = (colHeights[minCol] + gap) + "px";
+      cards[i].style.marginBottom = "0";
+      colHeights[minCol] += heights[i] + gap;
+    }
+
+    // 容器高度 = 最长列
+    this.gridEl.style.height = Math.max(200, Math.max(...colHeights)) + "px";
   }
 
   showStatusMenu(card: CardData, anchor: HTMLButtonElement) {
