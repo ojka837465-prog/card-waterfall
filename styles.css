@@ -4,7 +4,7 @@
 
 :root {
   --card-waterfall-columns: 3;
-  --card-waterfall-gap: 36px;
+  --card-waterfall-gap: 18px;
   --card-waterfall-card-radius: 18px;
   --card-waterfall-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   --card-waterfall-card-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.15);
@@ -330,6 +330,12 @@
   padding: 10px 20px 18px;
   flex-shrink: 0;
   flex-wrap: wrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.card-waterfall-card:hover .card-actions {
+  opacity: 1;
 }
 
 .card-action-btn {

@@ -380,7 +380,7 @@ class CardWaterfallView extends ItemView {
 
     // 计算列宽
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36;
+    const gap = 18;
     const gridWidth = this.gridEl.clientWidth;
     const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
     this.gridEl.style.position = "";
@@ -428,17 +428,6 @@ class CardWaterfallView extends ItemView {
       const titleEl = cardEl.createDiv({ cls: "card-title" });
       titleEl.textContent = card.title;
 
-      // 状态标记
-      if (card.status !== "默认") {
-        const stBadge = cardEl.createDiv({ cls: "card-status-badge" });
-        stBadge.textContent = STATUS_LABELS[card.status];
-        if (bgColor) {
-          stBadge.style.backgroundColor = "rgba(255,255,255,0.6)";
-          stBadge.style.color = STATUS_BADGE_COLORS[card.status] || "#666";
-          stBadge.style.border = "1px solid rgba(0,0,0,0.08)";
-        }
-      }
-
       // 正文（异步渲染）
       const body = cardEl.createDiv({ cls: "card-body" });
       let bodyContent = card.content.replace(/^#{1,3}\s+.*(\n|$)/, "").trim();
@@ -471,9 +460,6 @@ class CardWaterfallView extends ItemView {
           this.showStatusMenu(card, statusBtn);
         });
 
-        const editBtn = actions.createEl("button", { text: "编辑", cls: "card-action-btn" });
-        editBtn.addEventListener("click", async (e) => { e.stopPropagation(); await this.editCard(card); });
-
         const delBtn = actions.createEl("button", { text: "删除", cls: "card-action-btn card-action-danger" });
         delBtn.addEventListener("click", async (e) => { e.stopPropagation(); if (confirm(`确定删除「${card.title}」？`)) { await this.plugin.deleteCard(card.file); await this.refreshCards(); } });
       }
@@ -489,7 +475,7 @@ class CardWaterfallView extends ItemView {
     if (cards.length === 0) return;
 
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36;
+    const gap = 18;
     const colWidth = parseFloat(cards[0]?.style.width) || 280;
 
     // 读取自然高度（卡片此时还在文档流中，绝对定位还没设）

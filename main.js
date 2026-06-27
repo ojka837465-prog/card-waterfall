@@ -431,7 +431,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36;
+    const gap = 18;
     const gridWidth = this.gridEl.clientWidth;
     const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
     this.gridEl.style.position = "";
@@ -473,15 +473,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
       header.createSpan({ cls: "card-time", text: this.formatDate(card.created) });
       const titleEl = cardEl.createDiv({ cls: "card-title" });
       titleEl.textContent = card.title;
-      if (card.status !== "\u9ED8\u8BA4") {
-        const stBadge = cardEl.createDiv({ cls: "card-status-badge" });
-        stBadge.textContent = STATUS_LABELS[card.status];
-        if (bgColor) {
-          stBadge.style.backgroundColor = "rgba(255,255,255,0.6)";
-          stBadge.style.color = STATUS_BADGE_COLORS[card.status] || "#666";
-          stBadge.style.border = "1px solid rgba(0,0,0,0.08)";
-        }
-      }
       const body = cardEl.createDiv({ cls: "card-body" });
       let bodyContent = card.content.replace(/^#{1,3}\s+.*(\n|$)/, "").trim();
       const MAX_LEN = 500;
@@ -522,11 +513,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
           e.stopPropagation();
           this.showStatusMenu(card, statusBtn);
         });
-        const editBtn = actions.createEl("button", { text: "\u7F16\u8F91", cls: "card-action-btn" });
-        editBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await this.editCard(card);
-        });
         const delBtn = actions.createEl("button", { text: "\u5220\u9664", cls: "card-action-btn card-action-danger" });
         delBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
@@ -546,7 +532,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     if (cards.length === 0)
       return;
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36;
+    const gap = 18;
     const colWidth = parseFloat((_a = cards[0]) == null ? void 0 : _a.style.width) || 280;
     const heights = cards.map((el) => el.offsetHeight);
     const colHeights = new Array(columns).fill(-gap);
