@@ -481,7 +481,7 @@ class CardWaterfallView extends ItemView {
     if (cards.length === 0) return;
 
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 16; // 与 --card-waterfall-gap 一致
+    const gap = 20; // 与 --card-waterfall-gap 一致
     const gridWidth = this.gridEl.clientWidth;
     const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
 

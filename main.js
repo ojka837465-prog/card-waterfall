@@ -536,7 +536,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     if (cards.length === 0)
       return;
     const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 16;
+    const gap = 20;
     const gridWidth = this.gridEl.clientWidth;
     const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
     this.gridEl.style.position = "";
