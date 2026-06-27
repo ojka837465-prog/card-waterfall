@@ -1,6 +1,6 @@
 {
   "inspirationsFolder": "灵感卡片",
+  "cardColumns": 3,
   "archivedFolder": "灵感卡片/归档",
-  "cardColumns": 4,
   "showArchived": false
 }
