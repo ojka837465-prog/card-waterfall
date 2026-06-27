@@ -149,29 +149,30 @@
   background: var(--background-modifier-hover) !important;
 }
 
-/* ─── 卡片网格（JS Masonry 布局） ─── */
+/* ─── 卡片网格（CSS Columns 瀑布流布局） ─── */
 .card-waterfall-grid {
   flex: 1;
   overflow-y: auto;
   padding: 32px 36px;
+  column-count: var(--card-waterfall-columns, 3);
+  column-gap: var(--card-waterfall-gap);
   min-height: 200px;
 }
 
 /* ─── 单张卡片 ─── */
 .card-waterfall-card {
   break-inside: avoid;
-  margin-bottom: 0;
+  margin-bottom: var(--card-waterfall-gap);
   background: var(--card-waterfall-card-bg);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--card-waterfall-card-radius);
   box-shadow: var(--card-waterfall-card-shadow);
   transition: var(--card-waterfall-transition);
   overflow: hidden;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   width: 100%;
   cursor: pointer;
-  position: relative;
 }
 
 .card-waterfall-card:hover {

@@ -222,7 +222,6 @@ class CardWaterfallView extends ItemView {
   statusBarEl: HTMLElement;
   statusBtns: Map<string, HTMLButtonElement> = new Map();
   cardElements: Map<string, HTMLElement> = new Map();
-  resizeObserver: ResizeObserver | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: CardWaterfallPlugin) { super(leaf); this.plugin = plugin; }
 
@@ -239,7 +238,7 @@ class CardWaterfallView extends ItemView {
     tb.createEl("h3", { text: "💡 灵感瀑布流", cls: "card-waterfall-title" });
 
     this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "搜索灵感...", cls: "card-waterfall-search" });
-    this.searchInputEl.addEventListener("input", async () => { this.searchQuery = this.searchInputEl.value; await this.renderCards(); });
+    this.searchInputEl.addEventListener("input", () => { this.searchQuery = this.searchInputEl.value; this.renderCards(); });
 
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
     const selectBtn = this.toolbarEl.createEl("button", { text: "选择", cls: "card-waterfall-btn" });
@@ -272,12 +271,12 @@ class CardWaterfallView extends ItemView {
     this.statusBarEl.empty();
     this.statusBtns.clear();
     const allBtn = this.statusBarEl.createEl("button", { text: "全部", cls: "card-status-filter active" });
-    allBtn.addEventListener("click", async () => { this.statusFilter = "全部"; this.updateStatusFilterUI(); await this.renderCards(); });
+    allBtn.addEventListener("click", () => { this.statusFilter = "全部"; this.updateStatusFilterUI(); this.renderCards(); });
     this.statusBtns.set("全部", allBtn);
 
     for (const s of STATUS_OPTIONS) {
       const btn = this.statusBarEl.createEl("button", { text: STATUS_LABELS[s], cls: "card-status-filter" });
-      btn.addEventListener("click", async () => { this.statusFilter = s; this.updateStatusFilterUI(); await this.renderCards(); });
+      btn.addEventListener("click", () => { this.statusFilter = s; this.updateStatusFilterUI(); this.renderCards(); });
       this.statusBtns.set(s, btn);
     }
   }
@@ -298,17 +297,17 @@ class CardWaterfallView extends ItemView {
     await this.refreshCards();
   }
 
-  async refreshCards() { this.cards = await this.plugin.loadCards(); await this.renderCards(); }
+  refreshCards() { this.plugin.loadCards().then((c) => { this.cards = c; this.renderCards(); }); }
 
-  async setCardStatus(card: CardData, newStatus: CardStatus) {
+  setCardStatus(card: CardData, newStatus: CardStatus) {
     this.plugin.setStatus(card.file, newStatus);
     card.status = newStatus;
-    await this.updateCardElement(card);
+    this.updateCardElement(card);
   }
 
-  async updateCardElement(card: CardData) {
+  updateCardElement(card: CardData) {
     const el = this.cardElements.get(card.id);
-    if (!el) { await this.renderCards(); return; }
+    if (!el) { this.renderCards(); return; }
 
     // 更新背景色
     const bgColor = STATUS_COLORS[card.status] || null;
@@ -353,7 +352,7 @@ class CardWaterfallView extends ItemView {
     }
   }
 
-  async renderCards() {
+  renderCards() {
     this.gridEl.empty();
     const query = this.searchQuery.toLowerCase().trim();
     let filtered = this.cards;
@@ -378,9 +377,6 @@ class CardWaterfallView extends ItemView {
 
     this.gridEl.style.display = ""; this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
-
-    // 收集所有 Markdown 渲染 Promise
-    const renderPromises: Promise<void>[] = [];
 
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
@@ -437,7 +433,7 @@ class CardWaterfallView extends ItemView {
       const MAX_LEN = 500;
       let isTruncated = false;
       if (bodyContent.length > MAX_LEN) { bodyContent = bodyContent.slice(0, MAX_LEN); isTruncated = true; }
-      renderPromises.push(MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin));
+      MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin);
       if (isTruncated) body.createEl("div", { cls: "card-expand-hint", text: "… 点击卡片展开查看完整内容" });
 
       // 操作区
@@ -471,58 +467,7 @@ class CardWaterfallView extends ItemView {
       }
     }
 
-    // ⚡ 关键修复：等待所有 Markdown 内容渲染完毕，再计算 Masonry 布局
-    await Promise.all(renderPromises);
-
-    // 额外等一帧确保布局稳定
-    requestAnimationFrame(() => this.layoutMasonry());
-  }
-
-  // ─── Masonry 瀑布流：从左到右横向排列，卡片自然撑高 ───
-  layoutMasonry() {
-    const cards = Array.from(this.gridEl.children) as HTMLElement[];
-    if (cards.length === 0) return;
-
-    const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36; // 与 --card-waterfall-gap 一致
-    const gridWidth = this.gridEl.clientWidth;
-    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
-
-    // 第一步：所有卡片设为自然流布局，设置正确列宽，让浏览器算出自然高度
-    this.gridEl.style.position = "";
-    this.gridEl.style.height = "";
-    for (const card of cards) {
-      card.style.position = "";
-      card.style.width = colWidth + "px";
-      card.style.left = "";
-      card.style.top = "";
-      card.style.marginBottom = gap + "px";
-    }
-
-    // 第二步：强制重排后读取每张卡片的自然高度
-    interface CardPos { el: HTMLElement; h: number; }
-    const items: CardPos[] = cards.map((el) => ({ el, h: el.offsetHeight }));
-
-    // 第三步：用"最短列"算法做 Masonry 定位
-    const colHeights = new Array(columns).fill(0);
-    this.gridEl.style.position = "relative";
-
-    for (let i = 0; i < items.length; i++) {
-      const { el, h } = items[i];
-      let minCol = 0;
-      for (let j = 1; j < columns; j++) {
-        if (colHeights[j] < colHeights[minCol]) minCol = j;
-      }
-      el.style.position = "absolute";
-      el.style.width = colWidth + "px";
-      el.style.left = (minCol * (colWidth + gap)) + "px";
-      el.style.top = colHeights[minCol] + "px";
-      el.style.marginBottom = "0";
-      colHeights[minCol] += h + gap;
-    }
-
-    // 设置容器高度为最长列
-    this.gridEl.style.height = (Math.max(...colHeights) - gap) + "px";
+    // CSS Columns 自动处理瀑布流布局
   }
 
   showStatusMenu(card: CardData, anchor: HTMLButtonElement) {
@@ -560,7 +505,7 @@ class CardWaterfallView extends ItemView {
         e.stopPropagation();
         card.status = s;
         await this.plugin.setStatus(card.file, s);
-        await this.updateCardElement(card);
+        this.updateCardElement(card);
         menu.remove();
       });
     }
@@ -575,20 +520,20 @@ class CardWaterfallView extends ItemView {
     }
   }
 
-  async toggleSelectMode() {
+  toggleSelectMode() {
     this.isSelectMode = !this.isSelectMode;
     if (!this.isSelectMode) { this.selectedIds.clear(); new Notice("已退出选择模式"); }
     else { new Notice("勾选卡片后点击「导出」批量导出"); }
-    await this.renderCards();
+    this.renderCards();
   }
 
   async handleBatchExport() {
     if (!this.isSelectMode || this.selectedIds.size === 0) {
-      this.isSelectMode = true; await this.renderCards(); new Notice("请先勾选要导出的卡片"); return;
+      this.isSelectMode = true; this.renderCards(); new Notice("请先勾选要导出的卡片"); return;
     }
     const sf = this.cards.filter((c) => this.selectedIds.has(c.id)).map((c) => c.file);
     await this.plugin.batchExport(sf);
-    this.isSelectMode = false; this.selectedIds.clear(); await this.renderCards();
+    this.isSelectMode = false; this.selectedIds.clear(); this.renderCards();
   }
 
   private formatDate(timestamp: number): string {

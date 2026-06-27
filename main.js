@@ -258,7 +258,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.statusFilter = "\u5168\u90E8";
     this.statusBtns = /* @__PURE__ */ new Map();
     this.cardElements = /* @__PURE__ */ new Map();
-    this.resizeObserver = null;
     this.plugin = plugin;
   }
   getViewType() {
@@ -281,9 +280,9 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     const tb = c.createDiv({ cls: "card-waterfall-topbar" });
     tb.createEl("h3", { text: "\u{1F4A1} \u7075\u611F\u7011\u5E03\u6D41", cls: "card-waterfall-title" });
     this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "\u641C\u7D22\u7075\u611F...", cls: "card-waterfall-search" });
-    this.searchInputEl.addEventListener("input", async () => {
+    this.searchInputEl.addEventListener("input", () => {
       this.searchQuery = this.searchInputEl.value;
-      await this.renderCards();
+      this.renderCards();
     });
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
     const selectBtn = this.toolbarEl.createEl("button", { text: "\u9009\u62E9", cls: "card-waterfall-btn" });
@@ -318,18 +317,18 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.statusBarEl.empty();
     this.statusBtns.clear();
     const allBtn = this.statusBarEl.createEl("button", { text: "\u5168\u90E8", cls: "card-status-filter active" });
-    allBtn.addEventListener("click", async () => {
+    allBtn.addEventListener("click", () => {
       this.statusFilter = "\u5168\u90E8";
       this.updateStatusFilterUI();
-      await this.renderCards();
+      this.renderCards();
     });
     this.statusBtns.set("\u5168\u90E8", allBtn);
     for (const s of STATUS_OPTIONS) {
       const btn = this.statusBarEl.createEl("button", { text: STATUS_LABELS[s], cls: "card-status-filter" });
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", () => {
         this.statusFilter = s;
         this.updateStatusFilterUI();
-        await this.renderCards();
+        this.renderCards();
       });
       this.statusBtns.set(s, btn);
     }
@@ -354,19 +353,21 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.cardInputEl.style.height = "auto";
     await this.refreshCards();
   }
-  async refreshCards() {
-    this.cards = await this.plugin.loadCards();
-    await this.renderCards();
+  refreshCards() {
+    this.plugin.loadCards().then((c) => {
+      this.cards = c;
+      this.renderCards();
+    });
   }
-  async setCardStatus(card, newStatus) {
+  setCardStatus(card, newStatus) {
     this.plugin.setStatus(card.file, newStatus);
     card.status = newStatus;
-    await this.updateCardElement(card);
+    this.updateCardElement(card);
   }
-  async updateCardElement(card) {
+  updateCardElement(card) {
     const el = this.cardElements.get(card.id);
     if (!el) {
-      await this.renderCards();
+      this.renderCards();
       return;
     }
     const bgColor = STATUS_COLORS[card.status] || null;
@@ -408,7 +409,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         statusBtn.style.color = "";
     }
   }
-  async renderCards() {
+  renderCards() {
     this.gridEl.empty();
     const query = this.searchQuery.toLowerCase().trim();
     let filtered = this.cards;
@@ -429,7 +430,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.gridEl.style.display = "";
     this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
-    const renderPromises = [];
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
       const bgColor = STATUS_COLORS[card.status] || null;
@@ -482,7 +482,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         bodyContent = bodyContent.slice(0, MAX_LEN);
         isTruncated = true;
       }
-      renderPromises.push(import_obsidian.MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin));
+      import_obsidian.MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin);
       if (isTruncated)
         body.createEl("div", { cls: "card-expand-hint", text: "\u2026 \u70B9\u51FB\u5361\u7247\u5C55\u5F00\u67E5\u770B\u5B8C\u6574\u5185\u5BB9" });
       const actions = cardEl.createDiv({ cls: "card-actions" });
@@ -529,45 +529,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         });
       }
     }
-    await Promise.all(renderPromises);
-    requestAnimationFrame(() => this.layoutMasonry());
-  }
-  // ─── Masonry 瀑布流：从左到右横向排列，卡片自然撑高 ───
-  layoutMasonry() {
-    const cards = Array.from(this.gridEl.children);
-    if (cards.length === 0)
-      return;
-    const columns = this.plugin.settings.cardColumns || 3;
-    const gap = 36;
-    const gridWidth = this.gridEl.clientWidth;
-    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
-    this.gridEl.style.position = "";
-    this.gridEl.style.height = "";
-    for (const card of cards) {
-      card.style.position = "";
-      card.style.width = colWidth + "px";
-      card.style.left = "";
-      card.style.top = "";
-      card.style.marginBottom = gap + "px";
-    }
-    const items = cards.map((el) => ({ el, h: el.offsetHeight }));
-    const colHeights = new Array(columns).fill(0);
-    this.gridEl.style.position = "relative";
-    for (let i = 0; i < items.length; i++) {
-      const { el, h } = items[i];
-      let minCol = 0;
-      for (let j = 1; j < columns; j++) {
-        if (colHeights[j] < colHeights[minCol])
-          minCol = j;
-      }
-      el.style.position = "absolute";
-      el.style.width = colWidth + "px";
-      el.style.left = minCol * (colWidth + gap) + "px";
-      el.style.top = colHeights[minCol] + "px";
-      el.style.marginBottom = "0";
-      colHeights[minCol] += h + gap;
-    }
-    this.gridEl.style.height = Math.max(...colHeights) - gap + "px";
   }
   showStatusMenu(card, anchor) {
     document.querySelectorAll(".card-status-menu").forEach((el) => el.remove());
@@ -607,7 +568,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         e.stopPropagation();
         card.status = s;
         await this.plugin.setStatus(card.file, s);
-        await this.updateCardElement(card);
+        this.updateCardElement(card);
         menu.remove();
       });
     }
@@ -620,7 +581,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
       new import_obsidian.Notice("\u270F\uFE0F \u5DF2\u66F4\u65B0");
     }
   }
-  async toggleSelectMode() {
+  toggleSelectMode() {
     this.isSelectMode = !this.isSelectMode;
     if (!this.isSelectMode) {
       this.selectedIds.clear();
@@ -628,12 +589,12 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     } else {
       new import_obsidian.Notice("\u52FE\u9009\u5361\u7247\u540E\u70B9\u51FB\u300C\u5BFC\u51FA\u300D\u6279\u91CF\u5BFC\u51FA");
     }
-    await this.renderCards();
+    this.renderCards();
   }
   async handleBatchExport() {
     if (!this.isSelectMode || this.selectedIds.size === 0) {
       this.isSelectMode = true;
-      await this.renderCards();
+      this.renderCards();
       new import_obsidian.Notice("\u8BF7\u5148\u52FE\u9009\u8981\u5BFC\u51FA\u7684\u5361\u7247");
       return;
     }
@@ -641,7 +602,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     await this.plugin.batchExport(sf);
     this.isSelectMode = false;
     this.selectedIds.clear();
-    await this.renderCards();
+    this.renderCards();
   }
   formatDate(timestamp) {
     const d = new Date(timestamp);
