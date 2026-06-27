@@ -285,14 +285,15 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
       this.renderCards();
     });
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
-    const addBtn = this.toolbarEl.createEl("button", { text: "+", cls: "card-add-btn" });
-    addBtn.addEventListener("click", () => this.showAddModal());
     const selectBtn = this.toolbarEl.createEl("button", { text: "\u9009\u62E9", cls: "card-waterfall-btn" });
     selectBtn.addEventListener("click", () => this.toggleSelectMode());
     const exportBtn = this.toolbarEl.createEl("button", { text: "\u5BFC\u51FA", cls: "card-waterfall-btn" });
     exportBtn.addEventListener("click", () => this.handleBatchExport());
     const refreshBtn = this.toolbarEl.createEl("button", { text: "\u5237\u65B0", cls: "card-waterfall-btn" });
     refreshBtn.addEventListener("click", () => this.refreshCards());
+    tb.createDiv({ cls: "topbar-spacer" });
+    const addBtn = tb.createEl("button", { text: "+", cls: "card-add-btn" });
+    addBtn.addEventListener("click", () => this.showAddModal());
     this.statusBarEl = c.createDiv({ cls: "card-status-bar" });
     this.buildStatusFilter();
     this.gridEl = c.createDiv({ cls: "card-waterfall-grid" });

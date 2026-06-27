@@ -245,16 +245,19 @@ class CardWaterfallView extends ItemView {
     this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "搜索", cls: "card-waterfall-search" });
     this.searchInputEl.addEventListener("input", () => { this.searchQuery = this.searchInputEl.value; this.renderCards(); });
 
-    // ─── 工具栏 + 添加按钮 ───
+    // ─── 工具栏 ───
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
-    const addBtn = this.toolbarEl.createEl("button", { text: "+", cls: "card-add-btn" });
-    addBtn.addEventListener("click", () => this.showAddModal());
     const selectBtn = this.toolbarEl.createEl("button", { text: "选择", cls: "card-waterfall-btn" });
     selectBtn.addEventListener("click", () => this.toggleSelectMode());
     const exportBtn = this.toolbarEl.createEl("button", { text: "导出", cls: "card-waterfall-btn" });
     exportBtn.addEventListener("click", () => this.handleBatchExport());
     const refreshBtn = this.toolbarEl.createEl("button", { text: "刷新", cls: "card-waterfall-btn" });
     refreshBtn.addEventListener("click", () => this.refreshCards());
+
+    // ─── "+" 发布按钮（靠右顶格）───
+    tb.createDiv({ cls: "topbar-spacer" });
+    const addBtn = tb.createEl("button", { text: "+", cls: "card-add-btn" });
+    addBtn.addEventListener("click", () => this.showAddModal());
 
     // ─── 状态筛选栏 ───
     this.statusBarEl = c.createDiv({ cls: "card-status-bar" });
