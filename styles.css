@@ -49,14 +49,14 @@
 }
 
 .card-waterfall-search {
-  flex: 1;
-  min-width: 120px;
-  padding: 6px 12px;
+  flex: 0 0 auto;
+  width: 160px;
+  padding: 4px 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
   color: var(--text-normal);
-  font-size: 13px;
+  font-size: 12px;
   outline: none;
   transition: var(--card-waterfall-transition);
 }
@@ -88,6 +88,97 @@
   background: var(--background-modifier-hover);
   color: var(--text-normal);
   border-color: var(--card-waterfall-accent);
+}
+
+/* ─── "+" 添加按钮 ─── */
+.card-add-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--card-waterfall-accent);
+  border-radius: 8px;
+  background: var(--card-waterfall-accent);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: var(--card-waterfall-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-add-btn:hover {
+  background: #7c3aed;
+  transform: scale(1.08);
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
+}
+
+/* ─── 弹窗遮罩 ─── */
+.card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 80px 40px 0 0;
+}
+
+.card-modal {
+  width: 420px;
+  max-width: 90vw;
+  background: var(--background-primary);
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.card-modal-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.card-modal-cancel {
+  padding: 8px 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.card-modal-cancel:hover {
+  background: var(--background-modifier-hover);
+}
+
+.card-modal-submit {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--card-waterfall-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.card-modal-submit:hover {
+  background: #7c3aed;
 }
 
 /* ─── 状态筛选栏 ─── */

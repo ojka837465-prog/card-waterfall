@@ -279,12 +279,14 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     c.addClass("card-waterfall-container");
     const tb = c.createDiv({ cls: "card-waterfall-topbar" });
     tb.createEl("h3", { text: "\u{1F4A1} \u7075\u611F\u7011\u5E03\u6D41", cls: "card-waterfall-title" });
-    this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "\u641C\u7D22\u7075\u611F...", cls: "card-waterfall-search" });
+    this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "\u641C\u7D22", cls: "card-waterfall-search" });
     this.searchInputEl.addEventListener("input", () => {
       this.searchQuery = this.searchInputEl.value;
       this.renderCards();
     });
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
+    const addBtn = this.toolbarEl.createEl("button", { text: "+", cls: "card-add-btn" });
+    addBtn.addEventListener("click", () => this.showAddModal());
     const selectBtn = this.toolbarEl.createEl("button", { text: "\u9009\u62E9", cls: "card-waterfall-btn" });
     selectBtn.addEventListener("click", () => this.toggleSelectMode());
     const exportBtn = this.toolbarEl.createEl("button", { text: "\u5BFC\u51FA", cls: "card-waterfall-btn" });
@@ -296,21 +298,26 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.gridEl = c.createDiv({ cls: "card-waterfall-grid" });
     this.emptyStateEl = c.createDiv({ cls: "card-waterfall-empty" });
     this.emptyStateEl.innerHTML = `<div class="empty-icon">\u2728</div><div class="empty-text">\u8FD8\u6CA1\u6709\u7075\u611F\uFF0C\u5199\u4E0B\u4F60\u7684\u7B2C\u4E00\u6761\u7075\u611F\u5427\uFF01</div>`;
-    this.inputAreaEl = c.createDiv({ cls: "card-waterfall-input-area" });
-    const tagRow = this.inputAreaEl.createDiv({ cls: "card-input-tag-row" });
-    const tagInput = tagRow.createEl("input", { type: "text", placeholder: "\u6807\u7B7E\uFF08\u53EF\u9009\uFF0C\u9017\u53F7\u5206\u9694\uFF09", cls: "card-input-tags" });
-    this.cardInputEl = this.inputAreaEl.createEl("textarea", { placeholder: "\u8BB0\u5F55\u4F60\u7684\u7075\u611F...\uFF08\u652F\u6301 Markdown \u683C\u5F0F\uFF09", cls: "card-waterfall-input", attr: { rows: "3" } });
-    const submitBtn = this.inputAreaEl.createEl("button", { text: "\u53D1\u5E03\u7075\u611F \u{1F4A1}", cls: "card-waterfall-submit" });
-    this.cardInputEl.addEventListener("keydown", (e) => {
+    this.modalOverlay = c.createDiv({ cls: "card-modal-overlay", attr: { style: "display:none;" } });
+    const modal = this.modalOverlay.createDiv({ cls: "card-modal" });
+    modal.createEl("h3", { text: "\u{1F4DD} \u53D1\u5E03\u7075\u611F", cls: "card-modal-title" });
+    this.modalInputEl = modal.createEl("textarea", { placeholder: "\u8BB0\u5F55\u4F60\u7684\u7075\u611F...\uFF08\u652F\u6301 Markdown \u683C\u5F0F\uFF09", cls: "card-waterfall-input", attr: { rows: "4" } });
+    const tagRow = modal.createDiv({ cls: "card-input-tag-row" });
+    this.modalTagInput = tagRow.createEl("input", { type: "text", placeholder: "\u6807\u7B7E\uFF08\u53EF\u9009\uFF0C\u9017\u53F7\u5206\u9694\uFF09", cls: "card-input-tags" });
+    const btnRow = modal.createDiv({ cls: "card-modal-btns" });
+    const cancelBtn = btnRow.createEl("button", { text: "\u53D6\u6D88", cls: "card-modal-cancel" });
+    cancelBtn.addEventListener("click", () => this.hideAddModal());
+    const pubBtn = btnRow.createEl("button", { text: "\u53D1\u5E03 \u{1F4A1}", cls: "card-modal-submit" });
+    pubBtn.addEventListener("click", () => this.handleAddSubmit());
+    this.modalInputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        this.handleSubmit(tagInput);
+        this.handleAddSubmit();
       }
     });
-    submitBtn.addEventListener("click", () => this.handleSubmit(tagInput));
-    this.cardInputEl.addEventListener("input", () => {
-      this.cardInputEl.style.height = "auto";
-      this.cardInputEl.style.height = Math.min(this.cardInputEl.scrollHeight, 200) + "px";
+    this.modalOverlay.addEventListener("click", (e) => {
+      if (e.target === this.modalOverlay)
+        this.hideAddModal();
     });
   }
   buildStatusFilter() {
@@ -340,18 +347,27 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         v.addClass("active");
     }
   }
-  async handleSubmit(tagInput) {
-    const text = this.cardInputEl.value.trim();
+  async handleAddSubmit() {
+    const text = this.modalInputEl.value.trim();
     if (!text) {
       new import_obsidian.Notice("\u8BF7\u8F93\u5165\u7075\u611F\u5185\u5BB9");
       return;
     }
-    const tags = tagInput.value.split(/[,，、\s]+/).map((t) => t.trim()).filter((t) => t.length > 0);
+    const tags = this.modalTagInput.value.split(/[,，、\s]+/).map((t) => t.trim()).filter((t) => t.length > 0);
     await this.plugin.createCard(text, tags);
-    this.cardInputEl.value = "";
-    tagInput.value = "";
-    this.cardInputEl.style.height = "auto";
+    this.modalInputEl.value = "";
+    this.modalTagInput.value = "";
+    this.hideAddModal();
     await this.refreshCards();
+  }
+  showAddModal() {
+    this.modalOverlay.style.display = "flex";
+    this.modalInputEl.value = "";
+    this.modalTagInput.value = "";
+    setTimeout(() => this.modalInputEl.focus(), 50);
+  }
+  hideAddModal() {
+    this.modalOverlay.style.display = "none";
   }
   refreshCards() {
     this.plugin.loadCards().then((c) => {
