@@ -1,0 +1,9 @@
+{
+  "id": "card-waterfall",
+  "name": "灵感卡片瀑布流",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "以瀑布流卡片的形式管理你的灵感笔记，每条灵感一个卡片，支持标记、置顶、删除、批量导出。",
+  "author": "灵感工坊",
+  "isDesktopOnly": false
+}
