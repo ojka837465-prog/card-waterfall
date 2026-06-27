@@ -90,6 +90,66 @@
   border-color: var(--card-waterfall-accent);
 }
 
+/* ─── 状态筛选栏 ─── */
+.card-status-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 16px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.card-status-filter {
+  padding: 4px 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid transparent;
+  border-radius: 8px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-status-filter:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.card-status-filter.active {
+  background: var(--card-waterfall-accent-light);
+  color: var(--card-waterfall-accent);
+  border-color: var(--card-waterfall-accent);
+  font-weight: 600;
+}
+
+/* ─── 状态标记（卡片上） ─── */
+.card-status-badge {
+  display: inline-block;
+  margin: 4px 14px 0;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+/* ─── 状态菜单 ─── */
+.card-status-btn {
+  position: relative;
+}
+
+.card-status-menu {
+  position: absolute;
+  z-index: 100;
+}
+
+.card-status-menu-item:hover {
+  background: var(--background-modifier-hover) !important;
+}
+
 /* ─── 卡片网格（瀑布流布局） ─── */
 .card-waterfall-grid {
   flex: 1;
