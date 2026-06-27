@@ -258,6 +258,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.statusFilter = "\u5168\u90E8";
     this.statusBtns = /* @__PURE__ */ new Map();
     this.cardElements = /* @__PURE__ */ new Map();
+    this.resizeObserver = null;
     this.plugin = plugin;
   }
   getViewType() {
@@ -527,6 +528,44 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         });
       }
     }
+    requestAnimationFrame(() => this.layoutMasonry());
+  }
+  // ─── Masonry 瀑布流：从左到右横向排列，卡片自然撑高 ───
+  layoutMasonry() {
+    const cards = Array.from(this.gridEl.children);
+    if (cards.length === 0)
+      return;
+    const columns = this.plugin.settings.cardColumns || 3;
+    const gap = 16;
+    const gridWidth = this.gridEl.clientWidth;
+    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
+    this.gridEl.style.position = "";
+    this.gridEl.style.height = "";
+    for (const card of cards) {
+      card.style.position = "";
+      card.style.width = colWidth + "px";
+      card.style.left = "";
+      card.style.top = "";
+      card.style.marginBottom = gap + "px";
+    }
+    const items = cards.map((el) => ({ el, h: el.offsetHeight }));
+    const colHeights = new Array(columns).fill(0);
+    this.gridEl.style.position = "relative";
+    for (let i = 0; i < items.length; i++) {
+      const { el, h } = items[i];
+      let minCol = 0;
+      for (let j = 1; j < columns; j++) {
+        if (colHeights[j] < colHeights[minCol])
+          minCol = j;
+      }
+      el.style.position = "absolute";
+      el.style.width = colWidth + "px";
+      el.style.left = minCol * (colWidth + gap) + "px";
+      el.style.top = colHeights[minCol] + "px";
+      el.style.marginBottom = "0";
+      colHeights[minCol] += h + gap;
+    }
+    this.gridEl.style.height = Math.max(...colHeights) - gap + "px";
   }
   showStatusMenu(card, anchor) {
     document.querySelectorAll(".card-status-menu").forEach((el) => el.remove());

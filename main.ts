@@ -222,6 +222,7 @@ class CardWaterfallView extends ItemView {
   statusBarEl: HTMLElement;
   statusBtns: Map<string, HTMLButtonElement> = new Map();
   cardElements: Map<string, HTMLElement> = new Map();
+  resizeObserver: ResizeObserver | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: CardWaterfallPlugin) { super(leaf); this.plugin = plugin; }
 
@@ -469,6 +470,56 @@ class CardWaterfallView extends ItemView {
         delBtn.addEventListener("click", async (e) => { e.stopPropagation(); if (confirm(`确定删除「${card.title}」？`)) { await this.plugin.deleteCard(card.file); await this.refreshCards(); } });
       }
     }
+
+    // ✅ Masonry 瀑布流布局：先让浏览器算出自然高度，再重新定位
+    requestAnimationFrame(() => this.layoutMasonry());
+  }
+
+  // ─── Masonry 瀑布流：从左到右横向排列，卡片自然撑高 ───
+  layoutMasonry() {
+    const cards = Array.from(this.gridEl.children) as HTMLElement[];
+    if (cards.length === 0) return;
+
+    const columns = this.plugin.settings.cardColumns || 3;
+    const gap = 16; // 与 --card-waterfall-gap 一致
+    const gridWidth = this.gridEl.clientWidth;
+    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
+
+    // 第一步：所有卡片设为自然流布局，设置正确列宽，让浏览器算出自然高度
+    this.gridEl.style.position = "";
+    this.gridEl.style.height = "";
+    for (const card of cards) {
+      card.style.position = "";
+      card.style.width = colWidth + "px";
+      card.style.left = "";
+      card.style.top = "";
+      card.style.marginBottom = gap + "px";
+    }
+
+    // 第二步：强制重排后读取每张卡片的自然高度
+    interface CardPos { el: HTMLElement; h: number; }
+    const items: CardPos[] = cards.map((el) => ({ el, h: el.offsetHeight }));
+
+    // 第三步：用"最短列"算法做 Masonry 定位
+    const colHeights = new Array(columns).fill(0);
+    this.gridEl.style.position = "relative";
+
+    for (let i = 0; i < items.length; i++) {
+      const { el, h } = items[i];
+      let minCol = 0;
+      for (let j = 1; j < columns; j++) {
+        if (colHeights[j] < colHeights[minCol]) minCol = j;
+      }
+      el.style.position = "absolute";
+      el.style.width = colWidth + "px";
+      el.style.left = (minCol * (colWidth + gap)) + "px";
+      el.style.top = colHeights[minCol] + "px";
+      el.style.marginBottom = "0";
+      colHeights[minCol] += h + gap;
+    }
+
+    // 设置容器高度为最长列
+    this.gridEl.style.height = (Math.max(...colHeights) - gap) + "px";
   }
 
   showStatusMenu(card: CardData, anchor: HTMLButtonElement) {

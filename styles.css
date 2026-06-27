@@ -149,15 +149,12 @@
   background: var(--background-modifier-hover) !important;
 }
 
-/* ─── 卡片网格（横向网格布局） ─── */
+/* ─── 卡片网格（JS Masonry 布局） ─── */
 .card-waterfall-grid {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  display: grid;
-  grid-template-columns: repeat(var(--card-waterfall-columns, 3), 1fr);
-  gap: var(--card-waterfall-gap);
-  align-content: start;
+  min-height: 200px;
 }
 
 /* ─── 单张卡片 ─── */
