@@ -239,7 +239,7 @@ class CardWaterfallView extends ItemView {
     tb.createEl("h3", { text: "💡 灵感瀑布流", cls: "card-waterfall-title" });
 
     this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "搜索灵感...", cls: "card-waterfall-search" });
-    this.searchInputEl.addEventListener("input", () => { this.searchQuery = this.searchInputEl.value; this.renderCards(); });
+    this.searchInputEl.addEventListener("input", async () => { this.searchQuery = this.searchInputEl.value; await this.renderCards(); });
 
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
     const selectBtn = this.toolbarEl.createEl("button", { text: "选择", cls: "card-waterfall-btn" });
@@ -272,12 +272,12 @@ class CardWaterfallView extends ItemView {
     this.statusBarEl.empty();
     this.statusBtns.clear();
     const allBtn = this.statusBarEl.createEl("button", { text: "全部", cls: "card-status-filter active" });
-    allBtn.addEventListener("click", () => { this.statusFilter = "全部"; this.updateStatusFilterUI(); this.renderCards(); });
+    allBtn.addEventListener("click", async () => { this.statusFilter = "全部"; this.updateStatusFilterUI(); await this.renderCards(); });
     this.statusBtns.set("全部", allBtn);
 
     for (const s of STATUS_OPTIONS) {
       const btn = this.statusBarEl.createEl("button", { text: STATUS_LABELS[s], cls: "card-status-filter" });
-      btn.addEventListener("click", () => { this.statusFilter = s; this.updateStatusFilterUI(); this.renderCards(); });
+      btn.addEventListener("click", async () => { this.statusFilter = s; this.updateStatusFilterUI(); await this.renderCards(); });
       this.statusBtns.set(s, btn);
     }
   }
@@ -298,17 +298,17 @@ class CardWaterfallView extends ItemView {
     await this.refreshCards();
   }
 
-  async refreshCards() { this.cards = await this.plugin.loadCards(); this.renderCards(); }
+  async refreshCards() { this.cards = await this.plugin.loadCards(); await this.renderCards(); }
 
-  setCardStatus(card: CardData, newStatus: CardStatus) {
+  async setCardStatus(card: CardData, newStatus: CardStatus) {
     this.plugin.setStatus(card.file, newStatus);
     card.status = newStatus;
-    this.updateCardElement(card);
+    await this.updateCardElement(card);
   }
 
-  updateCardElement(card: CardData) {
+  async updateCardElement(card: CardData) {
     const el = this.cardElements.get(card.id);
-    if (!el) { this.renderCards(); return; }
+    if (!el) { await this.renderCards(); return; }
 
     // 更新背景色
     const bgColor = STATUS_COLORS[card.status] || null;
@@ -353,12 +353,12 @@ class CardWaterfallView extends ItemView {
     }
   }
 
-  renderCards() {
+  async renderCards() {
     this.gridEl.empty();
     const query = this.searchQuery.toLowerCase().trim();
     let filtered = this.cards;
 
-    // 按状态过滤（"归档"状态默认隐藏，除非选中"归档"或"全部"）
+    // 按状态过滤
     if (this.statusFilter !== "全部") {
       filtered = filtered.filter((c) => c.status === this.statusFilter);
     }
@@ -379,6 +379,9 @@ class CardWaterfallView extends ItemView {
     this.gridEl.style.display = ""; this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
 
+    // 收集所有 Markdown 渲染 Promise
+    const renderPromises: Promise<void>[] = [];
+
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
       const bgColor = STATUS_COLORS[card.status] || null;
@@ -386,13 +389,11 @@ class CardWaterfallView extends ItemView {
       const cardEl = this.gridEl.createDiv({ cls: "card-waterfall-card", attr: { "data-id": card.id } });
       this.cardElements.set(card.id, cardEl);
 
-      // 状态背景色填充（便签纸风格）
       if (bgColor) {
         cardEl.style.backgroundColor = bgColor;
         cardEl.style.borderColor = "transparent";
       }
 
-      // 归档透明度
       if (card.status === "归档") {
         cardEl.style.opacity = "0.7";
       }
@@ -419,7 +420,7 @@ class CardWaterfallView extends ItemView {
       const titleEl = cardEl.createDiv({ cls: "card-title" });
       titleEl.textContent = card.title;
 
-      // 状态标记（显示在标题和正文之间）
+      // 状态标记
       if (card.status !== "默认") {
         const stBadge = cardEl.createDiv({ cls: "card-status-badge" });
         stBadge.textContent = STATUS_LABELS[card.status];
@@ -430,13 +431,13 @@ class CardWaterfallView extends ItemView {
         }
       }
 
-      // 正文
+      // 正文（异步渲染）
       const body = cardEl.createDiv({ cls: "card-body" });
       let bodyContent = card.content.replace(/^#{1,3}\s+.*(\n|$)/, "").trim();
       const MAX_LEN = 500;
       let isTruncated = false;
       if (bodyContent.length > MAX_LEN) { bodyContent = bodyContent.slice(0, MAX_LEN); isTruncated = true; }
-      MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin);
+      renderPromises.push(MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin));
       if (isTruncated) body.createEl("div", { cls: "card-expand-hint", text: "… 点击卡片展开查看完整内容" });
 
       // 操作区
@@ -454,7 +455,6 @@ class CardWaterfallView extends ItemView {
         const pinBtn = actions.createEl("button", { text: card.pinned ? "取消置顶" : "置顶", cls: "card-action-btn" });
         pinBtn.addEventListener("click", async (e) => { e.stopPropagation(); await this.plugin.togglePin(card.file); await this.refreshCards(); });
 
-        // 状态切换下拉
         const currentStatus = card.status;
         const statusBtn = actions.createEl("button", { text: STATUS_LABELS[currentStatus], cls: "card-action-btn card-status-btn" });
         if (STATUS_BADGE_COLORS[currentStatus]) statusBtn.style.color = STATUS_BADGE_COLORS[currentStatus];
@@ -471,7 +471,10 @@ class CardWaterfallView extends ItemView {
       }
     }
 
-    // ✅ Masonry 瀑布流布局：先让浏览器算出自然高度，再重新定位
+    // ⚡ 关键修复：等待所有 Markdown 内容渲染完毕，再计算 Masonry 布局
+    await Promise.all(renderPromises);
+
+    // 额外等一帧确保布局稳定
     requestAnimationFrame(() => this.layoutMasonry());
   }
 
@@ -557,7 +560,7 @@ class CardWaterfallView extends ItemView {
         e.stopPropagation();
         card.status = s;
         await this.plugin.setStatus(card.file, s);
-        this.updateCardElement(card);
+        await this.updateCardElement(card);
         menu.remove();
       });
     }
@@ -572,20 +575,20 @@ class CardWaterfallView extends ItemView {
     }
   }
 
-  toggleSelectMode() {
+  async toggleSelectMode() {
     this.isSelectMode = !this.isSelectMode;
     if (!this.isSelectMode) { this.selectedIds.clear(); new Notice("已退出选择模式"); }
     else { new Notice("勾选卡片后点击「导出」批量导出"); }
-    this.renderCards();
+    await this.renderCards();
   }
 
   async handleBatchExport() {
     if (!this.isSelectMode || this.selectedIds.size === 0) {
-      this.isSelectMode = true; this.renderCards(); new Notice("请先勾选要导出的卡片"); return;
+      this.isSelectMode = true; await this.renderCards(); new Notice("请先勾选要导出的卡片"); return;
     }
     const sf = this.cards.filter((c) => this.selectedIds.has(c.id)).map((c) => c.file);
     await this.plugin.batchExport(sf);
-    this.isSelectMode = false; this.selectedIds.clear(); this.renderCards();
+    this.isSelectMode = false; this.selectedIds.clear(); await this.renderCards();
   }
 
   private formatDate(timestamp: number): string {

@@ -281,9 +281,9 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     const tb = c.createDiv({ cls: "card-waterfall-topbar" });
     tb.createEl("h3", { text: "\u{1F4A1} \u7075\u611F\u7011\u5E03\u6D41", cls: "card-waterfall-title" });
     this.searchInputEl = tb.createEl("input", { type: "text", placeholder: "\u641C\u7D22\u7075\u611F...", cls: "card-waterfall-search" });
-    this.searchInputEl.addEventListener("input", () => {
+    this.searchInputEl.addEventListener("input", async () => {
       this.searchQuery = this.searchInputEl.value;
-      this.renderCards();
+      await this.renderCards();
     });
     this.toolbarEl = tb.createDiv({ cls: "card-waterfall-toolbar" });
     const selectBtn = this.toolbarEl.createEl("button", { text: "\u9009\u62E9", cls: "card-waterfall-btn" });
@@ -318,18 +318,18 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.statusBarEl.empty();
     this.statusBtns.clear();
     const allBtn = this.statusBarEl.createEl("button", { text: "\u5168\u90E8", cls: "card-status-filter active" });
-    allBtn.addEventListener("click", () => {
+    allBtn.addEventListener("click", async () => {
       this.statusFilter = "\u5168\u90E8";
       this.updateStatusFilterUI();
-      this.renderCards();
+      await this.renderCards();
     });
     this.statusBtns.set("\u5168\u90E8", allBtn);
     for (const s of STATUS_OPTIONS) {
       const btn = this.statusBarEl.createEl("button", { text: STATUS_LABELS[s], cls: "card-status-filter" });
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         this.statusFilter = s;
         this.updateStatusFilterUI();
-        this.renderCards();
+        await this.renderCards();
       });
       this.statusBtns.set(s, btn);
     }
@@ -356,17 +356,17 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
   }
   async refreshCards() {
     this.cards = await this.plugin.loadCards();
-    this.renderCards();
+    await this.renderCards();
   }
-  setCardStatus(card, newStatus) {
+  async setCardStatus(card, newStatus) {
     this.plugin.setStatus(card.file, newStatus);
     card.status = newStatus;
-    this.updateCardElement(card);
+    await this.updateCardElement(card);
   }
-  updateCardElement(card) {
+  async updateCardElement(card) {
     const el = this.cardElements.get(card.id);
     if (!el) {
-      this.renderCards();
+      await this.renderCards();
       return;
     }
     const bgColor = STATUS_COLORS[card.status] || null;
@@ -408,7 +408,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         statusBtn.style.color = "";
     }
   }
-  renderCards() {
+  async renderCards() {
     this.gridEl.empty();
     const query = this.searchQuery.toLowerCase().trim();
     let filtered = this.cards;
@@ -429,6 +429,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.gridEl.style.display = "";
     this.emptyStateEl.style.display = "none";
     this.cardElements.clear();
+    const renderPromises = [];
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
       const bgColor = STATUS_COLORS[card.status] || null;
@@ -481,7 +482,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         bodyContent = bodyContent.slice(0, MAX_LEN);
         isTruncated = true;
       }
-      import_obsidian.MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin);
+      renderPromises.push(import_obsidian.MarkdownRenderer.render(this.app, bodyContent || card.content, body, card.file.path, this.plugin));
       if (isTruncated)
         body.createEl("div", { cls: "card-expand-hint", text: "\u2026 \u70B9\u51FB\u5361\u7247\u5C55\u5F00\u67E5\u770B\u5B8C\u6574\u5185\u5BB9" });
       const actions = cardEl.createDiv({ cls: "card-actions" });
@@ -528,6 +529,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         });
       }
     }
+    await Promise.all(renderPromises);
     requestAnimationFrame(() => this.layoutMasonry());
   }
   // ─── Masonry 瀑布流：从左到右横向排列，卡片自然撑高 ───
@@ -605,7 +607,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
         e.stopPropagation();
         card.status = s;
         await this.plugin.setStatus(card.file, s);
-        this.updateCardElement(card);
+        await this.updateCardElement(card);
         menu.remove();
       });
     }
@@ -618,7 +620,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
       new import_obsidian.Notice("\u270F\uFE0F \u5DF2\u66F4\u65B0");
     }
   }
-  toggleSelectMode() {
+  async toggleSelectMode() {
     this.isSelectMode = !this.isSelectMode;
     if (!this.isSelectMode) {
       this.selectedIds.clear();
@@ -626,12 +628,12 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     } else {
       new import_obsidian.Notice("\u52FE\u9009\u5361\u7247\u540E\u70B9\u51FB\u300C\u5BFC\u51FA\u300D\u6279\u91CF\u5BFC\u51FA");
     }
-    this.renderCards();
+    await this.renderCards();
   }
   async handleBatchExport() {
     if (!this.isSelectMode || this.selectedIds.size === 0) {
       this.isSelectMode = true;
-      this.renderCards();
+      await this.renderCards();
       new import_obsidian.Notice("\u8BF7\u5148\u52FE\u9009\u8981\u5BFC\u51FA\u7684\u5361\u7247");
       return;
     }
@@ -639,7 +641,7 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     await this.plugin.batchExport(sf);
     this.isSelectMode = false;
     this.selectedIds.clear();
-    this.renderCards();
+    await this.renderCards();
   }
   formatDate(timestamp) {
     const d = new Date(timestamp);
