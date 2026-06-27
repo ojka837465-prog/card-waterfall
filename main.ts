@@ -12,10 +12,10 @@ type CardStatus = typeof STATUS_OPTIONS[number];
 
 const STATUS_COLORS: Record<CardStatus, string> = {
   "默认": "",
-  "短篇": "#22c55e",
-  "长篇": "#3b82f6",
-  "归档": "#94a3b8",
-  "其他": "#f59e0b",
+  "短篇": "#D4E2D4",
+  "长篇": "#D0D8E8",
+  "归档": "#D8D8D8",
+  "其他": "#E8DCC8",
 };
 const STATUS_LABELS: Record<CardStatus, string> = {
   "默认": "默认",
@@ -23,6 +23,13 @@ const STATUS_LABELS: Record<CardStatus, string> = {
   "长篇": "长篇",
   "归档": "归档",
   "其他": "其他",
+};
+const STATUS_BADGE_COLORS: Record<CardStatus, string> = {
+  "默认": "",
+  "短篇": "#5A8F5A",
+  "长篇": "#5A7FA8",
+  "归档": "#888888",
+  "其他": "#A08060",
 };
 
 interface CardWaterfallSettings {
@@ -43,16 +50,17 @@ interface CardData {
 }
 
 // ─── 标签颜色映射 ──────────────────────────────────────────────
-const TAG_COLORS = [
-  "#B8B5C3", "#C5BBA8", "#A5B1C2", "#BCC8B6", "#C2B8C8",
-  "#D4C4B7", "#B7C4C4", "#C4B8B8", "#B8C2B8", "#C8C2B4",
-  "#B8B8C8", "#D0C4C0", "#BAC4C0", "#C4C0D0", "#C0C8C0",
+// 高饱和度标签圆点颜色（用户要求用高饱和不同颜色区分标签）
+const TAG_DOT_COLORS = [
+  "#FF6B6B", "#FFA94D", "#FFD43B", "#69DB7C", "#4DABF7",
+  "#748FFC", "#DA77F2", "#F783AC", "#20C997", "#FF8787",
+  "#A9E34B", "#339AF0", "#845EF7", "#E8590C", "#F06595",
 ];
 
 function getTagColor(tag: string): string {
   let hash = 0;
   for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+  return TAG_DOT_COLORS[Math.abs(hash) % TAG_DOT_COLORS.length];
 }
 
 // ─── 工具函数 ──────────────────────────────────────────────────
@@ -213,6 +221,7 @@ class CardWaterfallView extends ItemView {
   toolbarEl: HTMLElement;
   statusBarEl: HTMLElement;
   statusBtns: Map<string, HTMLButtonElement> = new Map();
+  cardElements: Map<string, HTMLElement> = new Map();
 
   constructor(leaf: WorkspaceLeaf, plugin: CardWaterfallPlugin) { super(leaf); this.plugin = plugin; }
 
@@ -251,7 +260,7 @@ class CardWaterfallView extends ItemView {
     this.inputAreaEl = c.createDiv({ cls: "card-waterfall-input-area" });
     const tagRow = this.inputAreaEl.createDiv({ cls: "card-input-tag-row" });
     const tagInput = tagRow.createEl("input", { type: "text", placeholder: "标签（可选，逗号分隔）", cls: "card-input-tags" });
-    this.cardInputEl = this.inputAreaEl.createEl("textarea", { placeholder: "记录你的灵感...（支持 Markdown 格式）", cls: "card-waterfall-input", rows: 3 });
+    this.cardInputEl = this.inputAreaEl.createEl("textarea", { placeholder: "记录你的灵感...（支持 Markdown 格式）", cls: "card-waterfall-input", attr: { rows: "3" } });
     const submitBtn = this.inputAreaEl.createEl("button", { text: "发布灵感 💡", cls: "card-waterfall-submit" });
     this.cardInputEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.handleSubmit(tagInput); } });
     submitBtn.addEventListener("click", () => this.handleSubmit(tagInput));
@@ -267,7 +276,6 @@ class CardWaterfallView extends ItemView {
 
     for (const s of STATUS_OPTIONS) {
       const btn = this.statusBarEl.createEl("button", { text: STATUS_LABELS[s], cls: "card-status-filter" });
-      if (STATUS_COLORS[s]) btn.style.borderLeftColor = STATUS_COLORS[s];
       btn.addEventListener("click", () => { this.statusFilter = s; this.updateStatusFilterUI(); this.renderCards(); });
       this.statusBtns.set(s, btn);
     }
@@ -294,7 +302,54 @@ class CardWaterfallView extends ItemView {
   setCardStatus(card: CardData, newStatus: CardStatus) {
     this.plugin.setStatus(card.file, newStatus);
     card.status = newStatus;
-    this.renderCards();
+    this.updateCardElement(card);
+  }
+
+  updateCardElement(card: CardData) {
+    const el = this.cardElements.get(card.id);
+    if (!el) { this.renderCards(); return; }
+
+    // 更新背景色
+    const bgColor = STATUS_COLORS[card.status] || null;
+    if (bgColor) {
+      el.style.backgroundColor = bgColor;
+      el.style.borderColor = "transparent";
+      el.style.opacity = card.status === "归档" ? "0.7" : "";
+    } else {
+      el.style.backgroundColor = "";
+      el.style.borderColor = "";
+      el.style.opacity = "";
+    }
+
+    // 更新状态徽章
+    const oldBadge = el.querySelector(".card-status-badge");
+    if (card.status !== "默认") {
+      if (!oldBadge) {
+        // 在标题后面插入新徽章
+        const titleEl = el.querySelector(".card-title");
+        if (titleEl) {
+          const stBadge = el.createDiv({ cls: "card-status-badge" });
+          stBadge.textContent = STATUS_LABELS[card.status];
+          stBadge.style.backgroundColor = "rgba(255,255,255,0.6)";
+          stBadge.style.color = STATUS_BADGE_COLORS[card.status] || "#666";
+          stBadge.style.border = "1px solid rgba(0,0,0,0.08)";
+          titleEl.after(stBadge);
+        }
+      } else {
+        (oldBadge as HTMLElement).textContent = STATUS_LABELS[card.status];
+        (oldBadge as HTMLElement).style.color = STATUS_BADGE_COLORS[card.status] || "#666";
+      }
+    } else {
+      if (oldBadge) oldBadge.remove();
+    }
+
+    // 更新置顶状态按钮文字
+    const statusBtn = el.querySelector(".card-status-btn") as HTMLButtonElement;
+    if (statusBtn) {
+      statusBtn.textContent = STATUS_LABELS[card.status];
+      if (STATUS_BADGE_COLORS[card.status]) statusBtn.style.color = STATUS_BADGE_COLORS[card.status];
+      else statusBtn.style.color = "";
+    }
   }
 
   renderCards() {
@@ -321,23 +376,24 @@ class CardWaterfallView extends ItemView {
     }
 
     this.gridEl.style.display = ""; this.emptyStateEl.style.display = "none";
+    this.cardElements.clear();
 
     for (const card of filtered) {
       const uniqueTags = [...new Set(card.tags)];
-      const mainTagColor = uniqueTags.length > 0 ? getTagColor(uniqueTags[0]) : null;
-      const stColor = STATUS_COLORS[card.status] || null;
+      const bgColor = STATUS_COLORS[card.status] || null;
 
       const cardEl = this.gridEl.createDiv({ cls: "card-waterfall-card", attr: { "data-id": card.id } });
+      this.cardElements.set(card.id, cardEl);
 
-      // 左边框：优先显示状态色，其次标签色
-      const borderColor = stColor || mainTagColor;
-      if (borderColor) {
-        if (card.status === "归档") {
-          cardEl.style.borderLeftColor = "#94a3b8";
-          cardEl.style.opacity = "0.65";
-        } else {
-          cardEl.style.borderLeftColor = borderColor;
-        }
+      // 状态背景色填充（便签纸风格）
+      if (bgColor) {
+        cardEl.style.backgroundColor = bgColor;
+        cardEl.style.borderColor = "transparent";
+      }
+
+      // 归档透明度
+      if (card.status === "归档") {
+        cardEl.style.opacity = "0.7";
       }
 
       if (this.selectedIds.has(card.id)) cardEl.addClass("is-selected");
@@ -366,9 +422,11 @@ class CardWaterfallView extends ItemView {
       if (card.status !== "默认") {
         const stBadge = cardEl.createDiv({ cls: "card-status-badge" });
         stBadge.textContent = STATUS_LABELS[card.status];
-        if (stColor) stBadge.style.backgroundColor = stColor + "22";
-        if (stColor) stBadge.style.color = stColor;
-        if (stColor) stBadge.style.borderColor = stColor + "44";
+        if (bgColor) {
+          stBadge.style.backgroundColor = "rgba(255,255,255,0.6)";
+          stBadge.style.color = STATUS_BADGE_COLORS[card.status] || "#666";
+          stBadge.style.border = "1px solid rgba(0,0,0,0.08)";
+        }
       }
 
       // 正文
@@ -398,7 +456,7 @@ class CardWaterfallView extends ItemView {
         // 状态切换下拉
         const currentStatus = card.status;
         const statusBtn = actions.createEl("button", { text: STATUS_LABELS[currentStatus], cls: "card-action-btn card-status-btn" });
-        if (STATUS_COLORS[currentStatus]) statusBtn.style.color = STATUS_COLORS[currentStatus];
+        if (STATUS_BADGE_COLORS[currentStatus]) statusBtn.style.color = STATUS_BADGE_COLORS[currentStatus];
         statusBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
           this.showStatusMenu(card, statusBtn);
@@ -440,7 +498,7 @@ class CardWaterfallView extends ItemView {
       item.style.cursor = "pointer";
       item.style.textAlign = "left";
       item.style.fontSize = "12px";
-      if (STATUS_COLORS[s]) item.style.color = STATUS_COLORS[s];
+      if (STATUS_BADGE_COLORS[s]) item.style.color = STATUS_BADGE_COLORS[s];
       if (s === card.status) item.style.fontWeight = "bold";
       item.addEventListener("mouseenter", () => { item.style.background = "var(--background-modifier-hover)"; });
       item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
@@ -448,7 +506,7 @@ class CardWaterfallView extends ItemView {
         e.stopPropagation();
         card.status = s;
         await this.plugin.setStatus(card.file, s);
-        this.renderCards();
+        this.updateCardElement(card);
         menu.remove();
       });
     }
