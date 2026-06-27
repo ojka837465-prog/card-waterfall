@@ -12,10 +12,10 @@ type CardStatus = typeof STATUS_OPTIONS[number];
 
 const STATUS_COLORS: Record<CardStatus, string> = {
   "默认": "",
-  "短篇": "#D4E2D4",
-  "长篇": "#D0D8E8",
-  "归档": "#D8D8D8",
-  "其他": "#E8DCC8",
+  "短篇": "#EEF5EE",
+  "长篇": "#EBEFF5",
+  "归档": "#F0F0F0",
+  "其他": "#F3EEE8",
 };
 const STATUS_LABELS: Record<CardStatus, string> = {
   "默认": "默认",

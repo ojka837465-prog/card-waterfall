@@ -31,10 +31,10 @@ var VIEW_TYPE = "card-waterfall-view";
 var STATUS_OPTIONS = ["\u9ED8\u8BA4", "\u77ED\u7BC7", "\u957F\u7BC7", "\u5F52\u6863", "\u5176\u4ED6"];
 var STATUS_COLORS = {
   "\u9ED8\u8BA4": "",
-  "\u77ED\u7BC7": "#D4E2D4",
-  "\u957F\u7BC7": "#D0D8E8",
-  "\u5F52\u6863": "#D8D8D8",
-  "\u5176\u4ED6": "#E8DCC8"
+  "\u77ED\u7BC7": "#EEF5EE",
+  "\u957F\u7BC7": "#EBEFF5",
+  "\u5F52\u6863": "#F0F0F0",
+  "\u5176\u4ED6": "#F3EEE8"
 };
 var STATUS_LABELS = {
   "\u9ED8\u8BA4": "\u9ED8\u8BA4",
