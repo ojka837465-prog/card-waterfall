@@ -87,9 +87,24 @@ function extractTitle(content) {
   title = title.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
   title = title.replace(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+\s*/u, "");
   title = title.replace(/\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu, "");
+  const sentence = title.match(/^.*?[。！？!?…]+/);
+  if (sentence)
+    title = sentence[0];
+  title = title.replace(/\s+/g, " ").trim();
   if (title.length > 16)
     title = title.slice(0, 16) + "\u2026";
   return title.trim() || "\u65E0\u6807\u9898";
+}
+function resolveTitle(frontmatterTitle, body, basename) {
+  const own = typeof frontmatterTitle === "string" ? frontmatterTitle.trim() : "";
+  if (own && own !== "\u65E0\u6807\u9898")
+    return own;
+  if (basename) {
+    const cleaned = basename.replace(/^\d{4}_\d{4}_/, "").trim();
+    if (cleaned)
+      return cleaned;
+  }
+  return extractTitle(body);
 }
 function sanitizeFilename(name) {
   return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim() || "\u672A\u547D\u540D";
@@ -101,8 +116,11 @@ var CardWaterfallPlugin = class extends import_obsidian.Plugin {
     this.addRibbonIcon("layers-3", "\u6253\u5F00\u7075\u611F\u5361\u7247\u7011\u5E03\u6D41", () => this.activateView());
     this.addCommand({ id: "open-card-waterfall", name: "\u6253\u5F00\u7075\u611F\u5361\u7247\u7011\u5E03\u6D41", callback: () => this.activateView() });
     this.addSettingTab(new CardWaterfallSettingTab(this.app, this));
-    if (this.app.workspace.getLeavesOfType(VIEW_TYPE).length === 0)
-      await this.activateView();
+    this.app.workspace.onLayoutReady(() => {
+      if (this.app.workspace.getLeavesOfType(VIEW_TYPE).length === 0) {
+        this.activateView();
+      }
+    });
   }
   async onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
@@ -120,7 +138,13 @@ var CardWaterfallPlugin = class extends import_obsidian.Plugin {
     if (leaves.length > 0)
       leaf = leaves[0];
     else {
-      leaf = workspace.getRightLeaf(false);
+      if (this.app.isMobile) {
+        leaf = workspace.getLeaf(true);
+      } else {
+        leaf = workspace.getRightLeaf(false);
+        if (!leaf)
+          leaf = workspace.getLeaf(true);
+      }
       if (leaf)
         await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
@@ -151,7 +175,7 @@ var CardWaterfallPlugin = class extends import_obsidian.Plugin {
       cards.push({
         id: file.basename,
         content: body || "(\u7A7A\u7075\u611F)",
-        title: frontmatter.title || extractTitle(body || ""),
+        title: resolveTitle(frontmatter.title, body || "", file.basename),
         created: frontmatter.created ? new Date(frontmatter.created).getTime() : file.stat.ctime,
         pinned: frontmatter.pinned === true,
         status: STATUS_OPTIONS.includes(status) ? status : "\u9ED8\u8BA4",
@@ -208,7 +232,7 @@ ${body}
   async updateCardContent(file, newBody) {
     const raw = await this.app.vault.read(file);
     const { frontmatter } = this.parseFrontmatter(raw);
-    frontmatter.title = extractTitle(newBody);
+    frontmatter.title = resolveTitle(frontmatter.title, newBody, file.basename);
     await this.app.vault.modify(file, `---
 ${(0, import_obsidian.stringifyYaml)(frontmatter)}---
 
@@ -258,6 +282,10 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
     this.statusFilter = "\u5168\u90E8";
     this.statusBtns = /* @__PURE__ */ new Map();
     this.cardElements = /* @__PURE__ */ new Map();
+    // 自适应
+    this.resizeObserver = null;
+    this._masonryTimer = null;
+    this._masonryPending = false;
     this.plugin = plugin;
   }
   getViewType() {
@@ -271,7 +299,37 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
   }
   async onOpen() {
     this.buildUI();
+    const isMobile = !!this.app.isMobile;
+    if (isMobile) {
+      this.plugin.settings.cardColumns = Math.min(this.plugin.settings.cardColumns, 2);
+    }
     await this.refreshCards();
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.gridEl.children.length === 0)
+        return;
+      this._masonryPending = true;
+      if (this._masonryTimer)
+        clearTimeout(this._masonryTimer);
+      this._masonryTimer = window.setTimeout(() => {
+        this._masonryPending = false;
+        this.layoutMasonry();
+      }, 80);
+    });
+    this.resizeObserver.observe(this.gridEl);
+    this.registerEvent(this.app.workspace.on("layout-change", () => {
+      setTimeout(() => this.layoutMasonry(), 300);
+    }));
+  }
+  onClose() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+    if (this._masonryTimer) {
+      clearTimeout(this._masonryTimer);
+      this._masonryTimer = null;
+    }
+    return Promise.resolve();
   }
   buildUI() {
     const c = this.containerEl;
@@ -544,13 +602,26 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
   }
   // ─── Masonry 布局：最短列算法 ───
   layoutMasonry() {
-    var _a;
     const cards = Array.from(this.gridEl.children);
     if (cards.length === 0)
       return;
-    const columns = this.plugin.settings.cardColumns || 3;
+    const gridWidth = this.gridEl.clientWidth;
+    let columns = this.plugin.settings.cardColumns || 3;
+    if (gridWidth < 400)
+      columns = 1;
+    else if (gridWidth < 600)
+      columns = 2;
     const gap = 18;
-    const colWidth = parseFloat((_a = cards[0]) == null ? void 0 : _a.style.width) || 280;
+    this.gridEl.style.height = "";
+    this.gridEl.style.position = "";
+    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
+    for (let i = 0; i < cards.length; i++) {
+      cards[i].style.width = colWidth + "px";
+      cards[i].style.position = "";
+      cards[i].style.left = "";
+      cards[i].style.top = "";
+      cards[i].style.marginBottom = gap + "px";
+    }
     const heights = cards.map((el) => el.offsetHeight);
     const colHeights = new Array(columns).fill(-gap);
     this.gridEl.style.position = "relative";
@@ -561,7 +632,6 @@ var CardWaterfallView = class extends import_obsidian.ItemView {
           minCol = j;
       }
       cards[i].style.position = "absolute";
-      cards[i].style.width = colWidth + "px";
       cards[i].style.left = minCol * (colWidth + gap) + "px";
       cards[i].style.top = colHeights[minCol] + gap + "px";
       cards[i].style.marginBottom = "0";
