@@ -73,8 +73,24 @@ function extractTitle(content: string): string {
   title = title.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
   title = title.replace(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+\s*/u, "");
   title = title.replace(/\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu, "");
+  // 提取第一句话（遇到句号/感叹号/问号/省略号等截断）
+  const sentence = title.match(/^.*?[。！？!?…]+/);
+  if (sentence) title = sentence[0];
+  title = title.replace(/\s+/g, " ").trim();
   if (title.length > 16) title = title.slice(0, 16) + "…";
   return title.trim() || "无标题";
+}
+
+// 标题解析规则：frontmatter.title > 文件名 > 正文第一句话
+function resolveTitle(frontmatterTitle: unknown, body: string, basename?: string): string {
+  const own = typeof frontmatterTitle === "string" ? frontmatterTitle.trim() : "";
+  if (own && own !== "无标题") return own;
+  // 文件名本身就是标题（去掉插件生成的时间戳前缀 MMDD_HHMM_）
+  if (basename) {
+    const cleaned = basename.replace(/^\d{4}_\d{4}_/, "").trim();
+    if (cleaned) return cleaned;
+  }
+  return extractTitle(body);
 }
 
 function sanitizeFilename(name: string): string {
@@ -91,7 +107,13 @@ export default class CardWaterfallPlugin extends Plugin {
     this.addRibbonIcon("layers-3", "打开灵感卡片瀑布流", () => this.activateView());
     this.addCommand({ id: "open-card-waterfall", name: "打开灵感卡片瀑布流", callback: () => this.activateView() });
     this.addSettingTab(new CardWaterfallSettingTab(this.app, this));
-    if (this.app.workspace.getLeavesOfType(VIEW_TYPE).length === 0) await this.activateView();
+
+    // ⚡ 等 Obsidian 布局就绪后再打开视图（否则可能空白）
+    this.app.workspace.onLayoutReady(() => {
+      if (this.app.workspace.getLeavesOfType(VIEW_TYPE).length === 0) {
+        this.activateView();
+      }
+    });
   }
 
   async onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
@@ -103,7 +125,16 @@ export default class CardWaterfallPlugin extends Plugin {
     let leaf: WorkspaceLeaf | null = null;
     const leaves = workspace.getLeavesOfType(VIEW_TYPE);
     if (leaves.length > 0) leaf = leaves[0];
-    else { leaf = workspace.getRightLeaf(false); if (leaf) await leaf.setViewState({ type: VIEW_TYPE, active: true }); }
+    else {
+      if ((this.app as any).isMobile) {
+        // 移动端：用主区域换标签页，右侧没有面板可用
+        leaf = workspace.getLeaf(true);
+      } else {
+        leaf = workspace.getRightLeaf(false);
+        if (!leaf) leaf = workspace.getLeaf(true);
+      }
+      if (leaf) await leaf.setViewState({ type: VIEW_TYPE, active: true });
+    }
     if (leaf) workspace.revealLeaf(leaf);
   }
 
@@ -127,7 +158,7 @@ export default class CardWaterfallPlugin extends Plugin {
       const status = (frontmatter.status as string) || "默认";
       cards.push({
         id: file.basename, content: body || "(空灵感)",
-        title: (frontmatter.title as string) || extractTitle(body || ""),
+        title: resolveTitle(frontmatter.title, body || "", file.basename),
         created: frontmatter.created ? new Date(frontmatter.created as string).getTime() : file.stat.ctime,
         pinned: frontmatter.pinned === true,
         status: STATUS_OPTIONS.includes(status as CardStatus) ? (status as CardStatus) : "默认",
@@ -173,7 +204,8 @@ export default class CardWaterfallPlugin extends Plugin {
   async updateCardContent(file: TFile, newBody: string): Promise<void> {
     const raw = await this.app.vault.read(file);
     const { frontmatter } = this.parseFrontmatter(raw);
-    frontmatter.title = extractTitle(newBody);
+    // 保留自带标题（frontmatter.title 或文件名）；只有都没有时才从正文第一句话提取
+    frontmatter.title = resolveTitle(frontmatter.title, newBody, file.basename);
     await this.app.vault.modify(file, `---\n${stringifyYaml(frontmatter)}---\n\n${newBody.trim()}\n`);
   }
 
@@ -226,6 +258,10 @@ class CardWaterfallView extends ItemView {
   modalOverlay: HTMLElement;
   modalInputEl: HTMLTextAreaElement;
   modalTagInput: HTMLInputElement;
+  // 自适应
+  resizeObserver: ResizeObserver | null = null;
+  _masonryTimer: number | null = null;
+  _masonryPending: boolean = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: CardWaterfallPlugin) { super(leaf); this.plugin = plugin; }
 
@@ -233,7 +269,42 @@ class CardWaterfallView extends ItemView {
   getDisplayText(): string { return "灵感卡片瀑布流"; }
   getIcon(): string { return "layers-3"; }
 
-  async onOpen() { this.buildUI(); await this.refreshCards(); }
+  async onOpen() {
+    this.buildUI();
+
+    // 移动端检测
+    const isMobile = !!(this.app as any).isMobile;
+    if (isMobile) {
+      this.plugin.settings.cardColumns = Math.min(this.plugin.settings.cardColumns, 2);
+    }
+
+    await this.refreshCards();
+
+    // ⭐ 用 ResizeObserver 监听网格容器宽度变化 → 自动重排（比 window.resize 精准）
+    this.resizeObserver = new ResizeObserver(() => {
+      // 卡片空则不操作
+      if (this.gridEl.children.length === 0) return;
+      // 防抖：连续变化只重排一次
+      this._masonryPending = true;
+      if (this._masonryTimer) clearTimeout(this._masonryTimer);
+      this._masonryTimer = window.setTimeout(() => {
+        this._masonryPending = false;
+        this.layoutMasonry();
+      }, 80);
+    });
+    this.resizeObserver.observe(this.gridEl);
+
+    // ⭐ 布局变化（如侧栏折叠/展开）也自动重排
+    this.registerEvent(this.app.workspace.on("layout-change", () => {
+      setTimeout(() => this.layoutMasonry(), 300);
+    }));
+  }
+
+  onClose(): Promise<void> {
+    if (this.resizeObserver) { this.resizeObserver.disconnect(); this.resizeObserver = null; }
+    if (this._masonryTimer) { clearTimeout(this._masonryTimer); this._masonryTimer = null; }
+    return Promise.resolve();
+  }
 
   buildUI() {
     const c = this.containerEl;
@@ -509,11 +580,29 @@ class CardWaterfallView extends ItemView {
     const cards = Array.from(this.gridEl.children) as HTMLElement[];
     if (cards.length === 0) return;
 
-    const columns = this.plugin.settings.cardColumns || 3;
+    // 移动端自动缩列
+    const gridWidth = this.gridEl.clientWidth;
+    let columns = this.plugin.settings.cardColumns || 3;
+    if (gridWidth < 400) columns = 1;
+    else if (gridWidth < 600) columns = 2;
     const gap = 18;
-    const colWidth = parseFloat(cards[0]?.style.width) || 280;
 
-    // 读取自然高度（卡片此时还在文档流中，绝对定位还没设）
+    // ⭐ 容器高度先放开（防止卡在流模式下被 clip）
+    this.gridEl.style.height = "";
+    this.gridEl.style.position = "";
+
+    const colWidth = Math.max(100, (gridWidth - gap * (columns - 1)) / columns);
+
+    // ⭐ 先更新所有卡片宽度，再重新读取高度
+    for (let i = 0; i < cards.length; i++) {
+      cards[i].style.width = colWidth + "px";
+      cards[i].style.position = "";    // 临时放回文档流
+      cards[i].style.left = "";
+      cards[i].style.top = "";
+      cards[i].style.marginBottom = gap + "px";
+    }
+
+    // 读取自然高度（此时卡片在文档流中）
     const heights = cards.map((el) => el.offsetHeight);
 
     // 最短列算法
@@ -526,7 +615,6 @@ class CardWaterfallView extends ItemView {
         if (colHeights[j] < colHeights[minCol]) minCol = j;
       }
       cards[i].style.position = "absolute";
-      cards[i].style.width = colWidth + "px";
       cards[i].style.left = (minCol * (colWidth + gap)) + "px";
       cards[i].style.top = (colHeights[minCol] + gap) + "px";
       cards[i].style.marginBottom = "0";
