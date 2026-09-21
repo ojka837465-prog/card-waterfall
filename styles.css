@@ -249,8 +249,10 @@
 .card-waterfall-grid {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 18px 24px;
   min-height: 200px;
+  transition: width 0.1s ease;
 }
 
 /* ─── 单张卡片 ─── */
@@ -575,4 +577,83 @@
 
 .card-waterfall-submit:active {
   transform: translateY(0);
+}
+
+/* ══════════════════════════════════════════════════════════
+   移动端 / 窄屏适配
+   ══════════════════════════════════════════════════════════ */
+
+/* 手机竖屏：紧凑布局 */
+@media (max-width: 600px) {
+  .card-waterfall-grid {
+    padding: 12px 12px;
+  }
+
+  .card-waterfall-topbar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .card-waterfall-search {
+    width: 100px;
+    font-size: 11px;
+  }
+
+  .card-waterfall-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .card-waterfall-card {
+    border-radius: 14px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    padding: 6px 12px 0;
+  }
+
+  .card-body {
+    font-size: 12px;
+    padding: 4px 12px 6px;
+  }
+
+  .card-actions {
+    opacity: 1; /* 手机触屏无法 hover，常显操作按钮 */
+    padding: 4px 12px 8px;
+  }
+
+  .card-header {
+    padding: 8px 12px 0;
+  }
+
+  .card-modal {
+    width: 92vw;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .card-modal-overlay {
+    padding: 40px 4% 0;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* 超窄屏（<400px）：单列 */
+@media (max-width: 400px) {
+  .card-waterfall-grid {
+    padding: 8px;
+  }
+}
+
+/* 手机横屏或小平板 */
+@media (min-width: 601px) and (max-width: 900px) {
+  .card-waterfall-grid {
+    padding: 14px 16px;
+  }
+
+  .card-waterfall-card {
+    border-radius: 16px;
+  }
 }
